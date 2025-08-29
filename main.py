@@ -98,6 +98,10 @@ class Game:
                     # Quick load
                     if self.load_game("quicksave"):
                         self.game_state = "PLAYING"
+                        
+                elif event.key == pygame.K_q and self.game_state == "PAUSED":
+                    # Quit to main menu from pause
+                    self.game_state = "MAIN_MENU"
             
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if self.game_state == "PLAYING":
@@ -243,17 +247,38 @@ class Game:
         self.renderer.render_spell_effects(self.spell_system.active_effects)
     
     def render_pause_overlay(self):
-        """Render pause menu overlay."""
+        """Render pause menu with options."""
+        # Semi-transparent overlay
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        overlay.set_alpha(128)
+        overlay.set_alpha(180)
         overlay.fill((0, 0, 0))
         self.screen.blit(overlay, (0, 0))
         
-        # Render pause menu
-        font = self.asset_manager.get_font("large")
-        text = font.render("PAUSED", True, (255, 255, 255))
-        text_rect = text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-        self.screen.blit(text, text_rect)
+        # Get fonts
+        large_font = self.asset_manager.get_font("large")
+        medium_font = self.asset_manager.get_font("medium")
+        
+        if large_font is None:
+            large_font = pygame.font.Font(None, 72)
+        if medium_font is None:
+            medium_font = pygame.font.Font(None, 48)
+        
+        # Render title
+        title_text = large_font.render("GAME PAUSED", True, (255, 255, 255))
+        title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100))
+        self.screen.blit(title_text, title_rect)
+        
+        # Render menu options
+        options = [
+            "Press ESC to Resume",
+            "Press Q to Quit to Main Menu",  
+            "Press ALT+F4 to Exit Game"
+        ]
+        
+        for i, option in enumerate(options):
+            option_text = medium_font.render(option, True, (200, 200, 200))
+            option_rect = option_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 20 + i * 40))
+            self.screen.blit(option_text, option_rect)
     
     def save_game(self, save_name):
         """Save the current game state."""
