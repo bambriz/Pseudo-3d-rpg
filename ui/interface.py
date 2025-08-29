@@ -19,6 +19,7 @@ class GameUI:
         
         # Inventory selection
         self.selected_inventory_slot = 0
+        self.inventory_selected_slot = 0  # For improved navigation
         self.inventory_scroll_offset = 0
         
         # UI surfaces
@@ -318,7 +319,7 @@ class GameUI:
                         (center_x, center_y + crosshair_size), 2)
     
     def render_inventory(self, screen, player):
-        """Render the inventory interface."""
+        """Render the inventory interface with visual highlights and equipped status."""
         # Create inventory background
         inventory_width = 400
         inventory_height = 300
@@ -342,7 +343,10 @@ class GameUI:
         slot_size = 40
         slots_per_row = 8
         
-        for i, item in enumerate(player.inventory[:32]):  # Show up to 32 items
+        # Get mouse position for hover detection
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        
+        for i in range(32):  # Show 32 slots (some may be empty)
             row = i // slots_per_row
             col = i % slots_per_row
             
@@ -351,18 +355,82 @@ class GameUI:
             
             slot_rect = pygame.Rect(slot_x, slot_y, slot_size, slot_size)
             
-            # Slot background
-            pygame.draw.rect(screen, (60, 60, 60), slot_rect)
-            pygame.draw.rect(screen, self.ui_border_color, slot_rect, 2)
+            # Check if this slot is being hovered
+            is_hovered = slot_rect.collidepoint(mouse_x, mouse_y)
             
-            # Item representation (simplified)
-            if hasattr(item, 'name'):
-                # Draw first letter of item name
-                item_text = item.name[0].upper()
-                text_surface = self.font_small.render(item_text, True, self.text_color)
-                text_x = slot_rect.centerx - text_surface.get_width() // 2
-                text_y = slot_rect.centery - text_surface.get_height() // 2
-                screen.blit(text_surface, (text_x, text_y))
+            # Check if this slot is selected (keyboard navigation)
+            is_selected = (i == getattr(self, 'inventory_selected_slot', 0))
+            
+            # Check if item in this slot is equipped
+            is_equipped = False
+            if i < len(player.inventory):
+                item = player.inventory[i]
+                if player.equipped_weapon and hasattr(item, 'name') and item.name == player.equipped_weapon.name:
+                    is_equipped = True
+            
+            # Slot background with different colors for different states
+            if is_equipped:
+                # Green background for equipped items
+                pygame.draw.rect(screen, (40, 80, 40), slot_rect)
+            elif is_selected:
+                # Yellow background for selected slot
+                pygame.draw.rect(screen, (80, 80, 40), slot_rect)
+            elif is_hovered:
+                # Light blue background for hovered slot
+                pygame.draw.rect(screen, (40, 60, 80), slot_rect)
+            else:
+                # Default background
+                pygame.draw.rect(screen, (60, 60, 60), slot_rect)
+            
+            # Border with special colors for states
+            border_color = self.ui_border_color
+            border_thickness = 2
+            
+            if is_equipped:
+                border_color = (100, 255, 100)  # Bright green for equipped
+                border_thickness = 3
+            elif is_selected:
+                border_color = (255, 255, 100)  # Bright yellow for selected
+                border_thickness = 3
+            elif is_hovered:
+                border_color = (100, 150, 255)  # Bright blue for hovered
+                border_thickness = 2
+            
+            pygame.draw.rect(screen, border_color, slot_rect, border_thickness)
+            
+            # Item representation
+            if i < len(player.inventory):
+                item = player.inventory[i]
+                if hasattr(item, 'name'):
+                    # Draw first letter of item name
+                    item_text = item.name[0].upper()
+                    text_surface = self.font_small.render(item_text, True, self.text_color)
+                    text_x = slot_rect.centerx - text_surface.get_width() // 2
+                    text_y = slot_rect.centery - text_surface.get_height() // 2
+                    screen.blit(text_surface, (text_x, text_y))
+                    
+                    # Add "E" marker for equipped items
+                    if is_equipped:
+                        equipped_text = "E"
+                        eq_surface = self.font_small.render(equipped_text, True, (100, 255, 100))
+                        eq_x = slot_rect.right - 12
+                        eq_y = slot_rect.top + 2
+                        screen.blit(eq_surface, (eq_x, eq_y))
+        
+        # Show selected item info
+        selected_slot = getattr(self, 'inventory_selected_slot', 0)
+        if selected_slot < len(player.inventory):
+            selected_item = player.inventory[selected_slot]
+            if hasattr(selected_item, 'name'):
+                info_text = f"Selected: {selected_item.name}"
+                if hasattr(selected_item, 'damage'):
+                    info_text += f" (DMG: {selected_item.damage})"
+                elif hasattr(selected_item, 'effect'):
+                    info_text += f" (Effect: {selected_item.effect})"
+                
+                info_surface = self.font_small.render(info_text, True, (255, 255, 150))
+                info_x = inventory_rect.centerx - info_surface.get_width() // 2
+                screen.blit(info_surface, (info_x, inventory_rect.bottom - 50))
         
         # Instructions
         instruction_text = "I: close | Arrows: navigate | Enter/Space: use | Click: select"
@@ -377,11 +445,45 @@ class GameUI:
             
         mouse_x, mouse_y = event.pos
         
-        # Check for HUD button clicks
-        if self.show_inventory or self.show_character_sheet:
+        # Handle inventory clicks
+        if self.show_inventory:
+            clicked_slot = self.get_inventory_slot_at_pos(mouse_x, mouse_y)
+            if clicked_slot >= 0:
+                self.inventory_selected_slot = clicked_slot
+                return True  # Consumed click
+            return True  # Still in inventory UI, consume click
+        
+        # Check for other UI clicks
+        if self.show_character_sheet:
             return True  # UI is consuming the click
             
         return False  # UI didn't handle the click
+    
+    def get_inventory_slot_at_pos(self, mouse_x, mouse_y):
+        """Get inventory slot index at mouse position."""
+        inventory_x = (SCREEN_WIDTH - 400) // 2
+        inventory_y = (SCREEN_HEIGHT - 300) // 2
+        grid_start_x = inventory_x + 20
+        grid_start_y = inventory_y + 50
+        slot_size = 40
+        slots_per_row = 8
+        
+        # Check if mouse is in grid area
+        if mouse_x < grid_start_x or mouse_y < grid_start_y:
+            return -1
+            
+        rel_x = mouse_x - grid_start_x
+        rel_y = mouse_y - grid_start_y
+        
+        col = rel_x // (slot_size + 5)
+        row = rel_y // (slot_size + 5)
+        
+        if col >= 0 and col < slots_per_row and row >= 0 and row < 4:  # 4 rows max
+            slot_index = row * slots_per_row + col
+            if slot_index < 32:  # Max 32 slots
+                return slot_index
+                
+        return -1
     
     def update(self, delta_time):
         """Update UI timers and animations."""

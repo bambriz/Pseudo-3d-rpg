@@ -34,11 +34,14 @@ class Enemy:
         self.patrol_points = []
         self.current_patrol_index = 0
         
-        # Movement
+        # Movement with momentum (Doom-style)
         self.angle = 0.0
         self.velocity_x = 0.0
         self.velocity_y = 0.0
+        self.target_velocity_x = 0.0
+        self.target_velocity_y = 0.0
         self.is_moving = False
+        self.momentum = 0.15  # How quickly enemies change direction
         
         # Combat
         self.attack_cooldown = 0.0
@@ -58,35 +61,35 @@ class Enemy:
             'goblin': {
                 'health': 20,
                 'damage': 5,
-                'speed': 1.2,
+                'speed': 0.6,  # Reduced from 1.2
                 'sight_range': 6.0,
                 'attack_range': 1.2
             },
             'orc': {
                 'health': 40,
                 'damage': 12,
-                'speed': 1.0,
+                'speed': 0.5,  # Reduced from 1.0
                 'sight_range': 8.0,
                 'attack_range': 1.5
             },
             'skeleton': {
                 'health': 15,
                 'damage': 8,
-                'speed': 0.8,
+                'speed': 0.4,  # Reduced from 0.8
                 'sight_range': 10.0,
                 'attack_range': 2.0
             },
             'troll': {
                 'health': 80,
                 'damage': 20,
-                'speed': 0.6,
+                'speed': 0.3,  # Reduced from 0.6
                 'sight_range': 5.0,
                 'attack_range': 2.5
             },
             'spider': {
                 'health': 12,
                 'damage': 6,
-                'speed': 1.8,
+                'speed': 0.8,  # Reduced from 1.8
                 'sight_range': 4.0,
                 'attack_range': 1.0
             }
@@ -219,50 +222,71 @@ class Enemy:
             self.angle = np.arctan2(dy, dx)
     
     def move_toward(self, target_x, target_y, delta_time):
-        """Move toward a target position."""
+        """Move toward a target position with smooth momentum."""
         dx = target_x - self.x
         dy = target_y - self.y
         distance = np.sqrt(dx * dx + dy * dy)
         
-        if distance > 0:
+        if distance > 0.1:  # Avoid jittering when very close
             # Normalize direction
             dx /= distance
             dy /= distance
             
-            # Set velocity
-            self.velocity_x = dx * self.speed
-            self.velocity_y = dy * self.speed
+            # Set target velocity (Doom-style smooth movement)
+            self.target_velocity_x = dx * self.speed
+            self.target_velocity_y = dy * self.speed
             self.is_moving = True
             
-            # Update facing angle
-            self.angle = np.arctan2(dy, dx)
+            # Update facing angle smoothly
+            target_angle = np.arctan2(dy, dx)
+            angle_diff = target_angle - self.angle
+            # Normalize angle difference to [-pi, pi]
+            while angle_diff > np.pi:
+                angle_diff -= 2 * np.pi
+            while angle_diff < -np.pi:
+                angle_diff += 2 * np.pi
+            self.angle += angle_diff * self.momentum * 3  # Smooth turning
         else:
-            self.velocity_x = 0
-            self.velocity_y = 0
-            self.is_moving = False
+            self.target_velocity_x = 0
+            self.target_velocity_y = 0
+            if abs(self.velocity_x) < 0.01 and abs(self.velocity_y) < 0.01:
+                self.is_moving = False
     
     def update_movement(self, world, delta_time):
-        """Update enemy position with collision detection."""
-        if not self.is_moving:
-            return
+        """Update enemy position with smooth momentum and collision detection."""
+        # Apply momentum to smooth movement (like Doom enemies)
+        self.velocity_x += (self.target_velocity_x - self.velocity_x) * self.momentum
+        self.velocity_y += (self.target_velocity_y - self.velocity_y) * self.momentum
+        
+        # Only move if velocity is significant
+        if abs(self.velocity_x) < 0.01 and abs(self.velocity_y) < 0.01:
+            self.velocity_x = 0
+            self.velocity_y = 0
+            if not self.is_moving:
+                return
         
         # Calculate new position
         new_x = self.x + self.velocity_x * delta_time
         new_y = self.y + self.velocity_y * delta_time
         
-        # Check collision
-        if world.is_passable(new_x, self.y):
+        # Check collision with smooth sliding
+        can_move_x = world.is_passable(new_x, self.y)
+        can_move_y = world.is_passable(self.x, new_y)
+        
+        if can_move_x:
             self.x = new_x
         else:
-            self.velocity_x = 0
+            self.velocity_x *= -0.1  # Small bounce back
+            self.target_velocity_x *= 0.5  # Reduce target speed when hitting walls
         
-        if world.is_passable(self.x, new_y):
+        if can_move_y:
             self.y = new_y
         else:
-            self.velocity_y = 0
+            self.velocity_y *= -0.1  # Small bounce back
+            self.target_velocity_y *= 0.5  # Reduce target speed when hitting walls
         
-        # Stop moving if both velocities are zero
-        if self.velocity_x == 0 and self.velocity_y == 0:
+        # Stop moving if velocities are very low
+        if abs(self.velocity_x) < 0.01 and abs(self.velocity_y) < 0.01:
             self.is_moving = False
     
     def distance_to(self, x, y):
@@ -329,14 +353,20 @@ class EnemyManager:
         self.spawn_initial_enemies()
     
     def spawn_initial_enemies(self):
-        """Spawn initial enemies in the world."""
+        """Spawn initial enemies across the large world."""
         enemy_spawns = [
-            (10, 10, 'goblin'),
-            (20, 10, 'orc'),
-            (10, 20, 'skeleton'),
-            (25, 25, 'spider'),
-            (15, 18, 'goblin'),
-            (22, 8, 'skeleton')
+            # Northwest sector - Starting area
+            (12, 12, 'goblin'), (15, 10, 'spider'), (22, 6, 'skeleton'),
+            # Northeast sector - Training area  
+            (40, 8, 'orc'), (60, 12, 'goblin'), (75, 20, 'skeleton'),
+            # Southwest sector - Dangerous area
+            (8, 75, 'troll'), (25, 80, 'orc'), (35, 85, 'spider'),
+            # Southeast sector - Endgame area
+            (75, 75, 'troll'), (95, 70, 'orc'), (110, 80, 'skeleton'),
+            # Central areas
+            (60, 40, 'goblin'), (45, 55, 'spider'), (80, 50, 'orc'),
+            # Maze areas
+            (50, 35, 'skeleton'), (85, 40, 'goblin'), (25, 50, 'spider')
         ]
         
         for spawn in enemy_spawns:

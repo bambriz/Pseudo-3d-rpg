@@ -224,43 +224,87 @@ class Renderer:
         return shaded
     
     def render_weapon(self, weapon):
-        """Render the equipped weapon in first-person view."""
+        """Render the equipped weapon in first-person view like classic dungeon crawlers."""
         if weapon is None:
             return
             
-        weapon_texture = self.asset_manager.get_weapon_texture(weapon.type)
+        weapon_texture = self.asset_manager.get_weapon_texture(weapon.name)
         if weapon_texture is None:
-            return
-            
-        # Position weapon in bottom-right of screen
-        weapon_size = (weapon_texture.get_width() * 2, weapon_texture.get_height() * 2)
-        scaled_weapon = pygame.transform.scale(weapon_texture, weapon_size)
+            # Try fallback with weapon type
+            weapon_texture = self.asset_manager.get_weapon_texture(weapon.weapon_type if hasattr(weapon, 'weapon_type') else weapon.name)
+            if weapon_texture is None:
+                return
         
-        weapon_pos = (
-            SCREEN_WIDTH - weapon_size[0] - 20,
-            SCREEN_HEIGHT - weapon_size[1] - 20
-        )
+        # Calculate weapon size - larger for dramatic first-person view
+        base_width = SCREEN_WIDTH // 2  # Half screen width
+        base_height = int(base_width * (weapon_texture.get_height() / weapon_texture.get_width()))
         
-        self.screen.blit(scaled_weapon, weapon_pos)
+        # Position weapon in bottom-right like classic FPS/dungeon crawlers
+        weapon_x = SCREEN_WIDTH - base_width - 30
+        weapon_y = SCREEN_HEIGHT - base_height - 20
         
-        # Render attack animation if active
-        if weapon.is_attacking:
-            self.render_weapon_attack_effect(weapon_pos, weapon_size)
+        # Apply attack animation offset
+        weapon_offset_y = 0
+        weapon_offset_x = 0
+        scale_factor = 1.0
+        
+        if hasattr(weapon, 'is_attacking') and weapon.is_attacking:
+            # Create dramatic attack animation
+            if hasattr(weapon, 'attack_animation_time'):
+                animation_progress = weapon.attack_animation_time / 0.5  # 0.5 second total
+                if animation_progress <= 1.0:
+                    # Attack swing - weapon moves up and slightly forward
+                    swing_amount = np.sin(animation_progress * np.pi)  # Smooth swing curve
+                    weapon_offset_y = -int(50 * swing_amount)  # Move up during attack
+                    weapon_offset_x = -int(20 * swing_amount)  # Move slightly left
+                    scale_factor = 1.0 + (0.1 * swing_amount)  # Slightly bigger during swing
+        
+        # Apply offsets
+        weapon_x += weapon_offset_x
+        weapon_y += weapon_offset_y
+        
+        # Calculate final size with scaling
+        final_width = int(base_width * scale_factor)
+        final_height = int(base_height * scale_factor)
+        
+        # Scale weapon texture
+        scaled_weapon = pygame.transform.scale(weapon_texture, (final_width, final_height))
+        
+        # Create weapon rect
+        weapon_rect = pygame.Rect(weapon_x, weapon_y, final_width, final_height)
+        
+        # Render weapon (always on top)
+        self.screen.blit(scaled_weapon, weapon_rect)
+        
+        # Add attack effect flash
+        if hasattr(weapon, 'is_attacking') and weapon.is_attacking:
+            self.render_weapon_attack_effect(weapon_rect)
     
-    def render_weapon_attack_effect(self, weapon_pos, weapon_size):
+    def render_weapon_attack_effect(self, weapon_rect):
         """Render visual effect for weapon attacks."""
-        # Attack swing effect with golden flash
-        flash_surface = pygame.Surface(weapon_size, pygame.SRCALPHA)
-        flash_surface.fill((255, 255, 128, 180))  # Golden flash
-        self.screen.blit(flash_surface, weapon_pos)
+        # Create subtle attack flash overlay
+        flash_surface = pygame.Surface((weapon_rect.width, weapon_rect.height), pygame.SRCALPHA)
+        flash_surface.fill((255, 255, 200, 80))  # Subtle golden flash
+        self.screen.blit(flash_surface, weapon_rect.topleft)
         
-        # Add slash effect lines
-        pygame.draw.line(self.screen, (255, 255, 255), 
-                        (weapon_pos[0] + 10, weapon_pos[1] + 10), 
-                        (weapon_pos[0] + weapon_size[0] - 10, weapon_pos[1] + weapon_size[1] - 10), 3)
-        pygame.draw.line(self.screen, (255, 200, 200), 
-                        (weapon_pos[0] + weapon_size[0] - 10, weapon_pos[1] + 10), 
-                        (weapon_pos[0] + 10, weapon_pos[1] + weapon_size[1] - 10), 2)
+        # Add dynamic slash effect lines across the screen
+        screen_center_x = SCREEN_WIDTH // 2
+        screen_center_y = SCREEN_HEIGHT // 2
+        
+        # Animated slash lines that sweep across screen
+        import time
+        flash_intensity = int(128 + 127 * np.sin(time.time() * 10))  # Pulsing effect
+        
+        # Multiple slash lines for dramatic effect
+        pygame.draw.line(self.screen, (255, flash_intensity, flash_intensity, 180), 
+                        (screen_center_x - 100, screen_center_y - 50), 
+                        (screen_center_x + 100, screen_center_y + 50), 4)
+        pygame.draw.line(self.screen, (255, 255, flash_intensity, 120), 
+                        (screen_center_x - 80, screen_center_y - 30), 
+                        (screen_center_x + 80, screen_center_y + 30), 2)
+        pygame.draw.line(self.screen, (255, 255, 255, 60), 
+                        (screen_center_x - 60, screen_center_y - 10), 
+                        (screen_center_x + 60, screen_center_y + 10), 1)
     
     def render_spell_effects(self, effects):
         """Render active spell effects."""
