@@ -6,8 +6,8 @@ Contains all game settings, display parameters, and constants.
 import numpy as np
 
 # Display settings
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
 TARGET_FPS = 60
 
 # Rendering settings

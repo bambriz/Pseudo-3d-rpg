@@ -35,6 +35,7 @@ class CombatSystem:
         
         # Initialize default weapons
         self.weapons = {
+            'fist': Weapon("Bare Fists", "melee", 5, 0.8, 1.0, "fist"),  # Default fist weapon
             'sword': Weapon("Iron Sword", "melee", 15, 1.0, 1.5, "sword"),
             'dagger': Weapon("Steel Dagger", "melee", 8, 0.5, 1.0, "dagger"),
             'axe': Weapon("Battle Axe", "melee", 20, 1.5, 1.2, "axe"),

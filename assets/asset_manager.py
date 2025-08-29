@@ -154,7 +154,7 @@ class AssetManager:
     
     def load_weapon_textures(self):
         """Load or generate weapon textures."""
-        weapon_types = ["sword", "dagger", "axe", "spear", "bow", "wand", "staff", "shield"]
+        weapon_types = ["fist", "sword", "dagger", "axe", "spear", "bow", "wand", "staff", "shield"]
         
         for weapon_type in weapon_types:
             weapon_path = os.path.join(self.texture_dir, f"{weapon_type}.png")

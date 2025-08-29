@@ -87,12 +87,16 @@ class Mode7Renderer:
             texture_array = pygame.surfarray.array3d(texture)
             surface_array = pygame.surfarray.pixels3d(surface)
             
-            # Use optimized Numba function
-            fast_mode7_render(
-                texture_array, surface_array, self.perspective_table,
-                player_x, player_y, cos_a, sin_a,
-                texture_width, texture_height, MAX_RENDER_DISTANCE
-            )
+            # Use optimized Numba function if available, otherwise fallback
+            try:
+                fast_mode7_render(
+                    texture_array, surface_array, self.perspective_table,
+                    player_x, player_y, cos_a, sin_a,
+                    texture_width, texture_height, MAX_RENDER_DISTANCE
+                )
+            except:
+                # Numba function might fail, use simpler rendering
+                self.render_simple_mode7(surface, texture, player_x, player_y, player_angle, is_ceiling)
             
         except Exception:
             # Fallback to simple fill
@@ -141,6 +145,52 @@ class Mode7Renderer:
                 texture.set_at((x, y), color)
                 
         return texture
+    
+    def render_simple_mode7(self, surface, texture, player_x, player_y, player_angle, is_ceiling):
+        """Simple Mode 7 rendering fallback without Numba."""
+        cos_a = np.cos(player_angle)
+        sin_a = np.sin(player_angle)
+        
+        texture_width = texture.get_width()
+        texture_height = texture.get_height()
+        
+        for y in range(surface.get_height()):
+            for x in range(surface.get_width()):
+                if y < len(self.perspective_table) and x < len(self.perspective_table[y]):
+                    world_x = self.perspective_table[y, x, 0]
+                    world_z = self.perspective_table[y, x, 1]
+                    
+                    # Apply rotation
+                    rotated_x = world_x * cos_a - world_z * sin_a
+                    rotated_z = world_x * sin_a + world_z * cos_a
+                    
+                    # Add player position
+                    final_x = rotated_x + player_x
+                    final_z = rotated_z + player_y
+                    
+                    # Scale for texture tiling
+                    tex_x = int(final_x * texture_width) % texture_width
+                    tex_z = int(final_z * texture_height) % texture_height
+                    
+                    try:
+                        color = texture.get_at((tex_x, tex_z))
+                        
+                        # Apply distance-based fog
+                        distance = np.sqrt(world_x * world_x + world_z * world_z)
+                        fog_factor = max(0.3, 1.0 - distance / MAX_RENDER_DISTANCE)
+                        
+                        fogged_color = (
+                            int(color[0] * fog_factor),
+                            int(color[1] * fog_factor),
+                            int(color[2] * fog_factor)
+                        )
+                        
+                        surface.set_at((x, y), fogged_color)
+                    except (IndexError, ValueError):
+                        if is_ceiling:
+                            surface.set_at((x, y), CEILING_COLOR)
+                        else:
+                            surface.set_at((x, y), FLOOR_COLOR)
 
 @jit(nopython=True)
 def fast_mode7_render(texture_array, surface_array, perspective_table, 

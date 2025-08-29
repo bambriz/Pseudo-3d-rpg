@@ -462,7 +462,9 @@ class TextureGenerator:
         
         texture = pygame.Surface(size, pygame.SRCALPHA)
         
-        if weapon_type == "sword":
+        if weapon_type == "fist":
+            self.draw_fist(texture)
+        elif weapon_type == "sword":
             self.draw_sword(texture)
         elif weapon_type == "dagger":
             self.draw_dagger(texture)
@@ -614,3 +616,34 @@ class TextureGenerator:
         design_color = (160, 82, 45)
         pygame.draw.line(surface, design_color, (32, 16), (32, 48), 3)
         pygame.draw.line(surface, design_color, (16, 32), (48, 32), 3)
+    
+    def draw_fist(self, surface):
+        """Draw a clenched fist for unarmed combat."""
+        # Fist/hand color (skin tone)
+        skin_color = (222, 184, 135)  # Burlywood
+        darker_skin = (205, 170, 125)
+        
+        # Draw forearm
+        pygame.draw.ellipse(surface, skin_color, (12, 60, 24, 30))
+        
+        # Draw hand/palm
+        pygame.draw.ellipse(surface, skin_color, (8, 35, 32, 35))
+        
+        # Draw fingers (clenched)
+        finger_color = darker_skin
+        # Thumb
+        pygame.draw.ellipse(surface, finger_color, (6, 45, 8, 12))
+        # Index finger knuckle
+        pygame.draw.ellipse(surface, finger_color, (10, 32, 8, 10))
+        # Middle finger knuckle  
+        pygame.draw.ellipse(surface, finger_color, (18, 30, 8, 10))
+        # Ring finger knuckle
+        pygame.draw.ellipse(surface, finger_color, (26, 32, 8, 10))
+        # Pinky knuckle
+        pygame.draw.ellipse(surface, finger_color, (32, 38, 6, 8))
+        
+        # Add some knuckle details
+        knuckle_color = (180, 140, 100)
+        pygame.draw.circle(surface, knuckle_color, (14, 36), 2)
+        pygame.draw.circle(surface, knuckle_color, (22, 34), 2)
+        pygame.draw.circle(surface, knuckle_color, (30, 36), 2)

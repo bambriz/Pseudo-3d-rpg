@@ -35,6 +35,10 @@ class Game:
         pygame.display.set_caption("Pseudo-3D RPG")
         self.clock = pygame.time.Clock()
         
+        # Enable mouse capture for proper FPS-style controls
+        pygame.mouse.set_visible(False)
+        pygame.event.set_grab(True)
+        
         # Initialize asset manager first
         self.asset_manager = AssetManager()
         self.asset_manager.load_all_assets()
@@ -48,6 +52,9 @@ class Game:
         self.world = World()
         self.player = Player(self.world.spawn_x, self.world.spawn_y)
         self.combat_system = CombatSystem(self.asset_manager)
+        
+        # Give player default fist weapon
+        self.player.equipped_weapon = self.combat_system.weapons['fist']
         self.spell_system = SpellSystem(self.asset_manager)
         self.enemy_manager = EnemyManager(self.world, self.asset_manager)
         
