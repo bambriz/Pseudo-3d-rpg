@@ -1,0 +1,58 @@
+Create a real-time RPG game in Python using a 2D game library like Pygame or Arcade. The game should simulate a 3D first-person experience using raycasting and Mode 7–style rendering techniques. The visual style should resemble classic RPGs like Daggerfall or Morrowind.
+
+Start by implementing five core systems:
+
+1. **Character Movement and Combat**:
+   - Player moves in a grid-based world with first-person perspective simulated via raycasting.
+   - Mouse controls combat:
+     - Left-click: melee attack, ranged attack, or cast spell (depending on equipped item).
+     - Right-click: block, aim, or off-hand attack (if dual wielding).
+   - Include basic weapon and spell switching logic.
+   - Implement multiple weapon types:
+     - Melee: swords, daggers, axes, spears.
+     - Defense: shields (used for blocking).
+     - Ranged: bow and arrow.
+     - Magic: wands and staves (used to cast spells).
+   - Draw each weapon type with simple animations for attacks and idle states.
+   - Add basic enemy types that can be attacked and defeated.
+
+2. **Spell System**:
+   - Players can learn and use spells.
+   - Spells can target enemies or be cast on self (e.g., healing, buffs).
+   - Include a few example spells:
+     - Fireball (ranged damage)
+     - Heal (restore health)
+     - Shield (temporary defense boost)
+     - Teleport (short-range movement)
+   - Spell usage consumes Spirit (green bar), and fatigue reduces max Spirit over time.
+
+3. **Menu and UI System**:
+   - Main menu with options: Start Game, Load Game, Quit.
+   - In-game UI includes:
+     - Inventory system.
+     - Character stats: Health (red bar), Spirit (green bar).
+     - Fatigue mechanic: actions reduce max HP and Spirit over time, shown as yellow overlay on bars.
+   - Game can be paused with options to continue, quit, or return to main menu.
+
+4. **Open World Map and NPCs**:
+   - Generate a single open world map with walls, ceilings, ramps, ladders, and water zones.
+   - Vertical movement supported: flying, climbing, swimming.
+   - Save and load world state, including enemy positions.
+   - Enemies should navigate terrain and attack player when in range.
+   - NPCs with dialogue options and stubbed services (shops, healing, quest givers).
+   - Include a basic quest system with a main goal: defeat an evil dictator who made a demonic pact to seize control of a once-democratic medieval fantasy kingdom.
+
+5. **Asset Generation**:
+   - Automatically generate all required assets for the game:
+     - Pixel art for characters, enemies, weapons, terrain, and UI.
+     - Simple animations for weapon attacks and enemy movement.
+     - Background music and sound effects for combat, ambient zones, and interactions.
+     - Dialogue text and placeholder voice lines for NPCs.
+   - Assets should match the medieval fantasy theme and support the immersive pseudo-3D experience.
+
+6. **Packaging and Distribution**:
+   - Set up the game so it can be instantly compiled into a standalone executable by running a single script.
+   - Package the entire game folder (including assets and executable) into a zip file automatically.
+   - Ensure the zip file is ready to be shared and run on other systems without requiring manual setup or extra dependencies.
+
+Use modular code structure with separate files for player, combat, UI, world generation, NPCs, quests, spells, and asset management. Prioritize clarity, expandability, and performance. Use placeholder logic where needed, but ensure all systems are scaffolded and ready for expansion.
