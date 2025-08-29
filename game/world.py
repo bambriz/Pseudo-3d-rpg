@@ -35,7 +35,7 @@ class World:
         self.generate_test_dungeon()
     
     def generate_test_dungeon(self):
-        """Generate a test dungeon for the game."""
+        """Generate a larger explorable dungeon with varied areas."""
         # Clear the map
         self.map_data.fill(0)
         
@@ -45,36 +45,90 @@ class World:
         self.map_data[:, 0] = 1  # Left wall
         self.map_data[:, -1] = 1  # Right wall
         
-        # Create some interior rooms
-        self.create_room(5, 5, 8, 6, 2)  # Room with stone walls
-        self.create_room(15, 5, 6, 6, 3)  # Room with different wall type
-        self.create_room(5, 15, 10, 8, 2)  # Larger room
-        self.create_room(20, 15, 8, 10, 4)  # Another room
+        # Create multiple distinct areas for exploration
+        # Starting area - safe zone
+        self.create_room(5, 5, 12, 8, 2)  # Large starting room
+        self.create_room(20, 5, 8, 6, 3)  # Guard house
+        self.create_room(30, 8, 10, 8, 4)  # Storage area
         
-        # Create corridors connecting rooms
-        self.create_horizontal_corridor(13, 8, 15)  # Connect first two rooms
-        self.create_vertical_corridor(8, 11, 15)  # Connect to bottom rooms
-        self.create_horizontal_corridor(15, 20, 20)  # Connect bottom rooms
+        # Mid-level areas
+        self.create_room(5, 20, 15, 10, 2)  # Great hall
+        self.create_room(25, 20, 12, 12, 3)  # Training grounds
+        self.create_room(45, 15, 15, 8, 4)  # Library
         
-        # Add some interior walls for complexity
-        self.create_wall_line(10, 10, 10, 13, 2)
-        self.create_wall_line(25, 8, 27, 8, 3)
+        # Dangerous deeper areas
+        self.create_room(5, 40, 10, 12, 1)  # Prison cells
+        self.create_room(25, 45, 20, 15, 4)  # Boss arena
+        self.create_room(50, 45, 10, 10, 3)  # Treasure vault
         
-        # Set spawn point in the first room
-        self.spawn_x = 8.5
+        # Connect areas with corridors
+        self.create_horizontal_corridor(17, 8, 20)  # Connect starting rooms
+        self.create_vertical_corridor(10, 13, 20)  # To great hall
+        self.create_horizontal_corridor(20, 25, 25)  # To training grounds
+        self.create_vertical_corridor(30, 32, 45)  # To deeper areas
+        self.create_horizontal_corridor(15, 25, 48)  # Connect deep areas
+        
+        # Add maze-like sections
+        self.create_maze_section(40, 25, 15, 15)
+        
+        # Set spawn point in the starting room
+        self.spawn_x = 10.5
         self.spawn_y = 8.5
         
-        # Add some special features
-        self.add_door(14, 8, "wooden_door")
-        self.add_door(8, 14, "iron_door")
-        self.add_switch(7, 7, "lever", "opens_secret_door")
+        # Add many doors and interactive elements
+        self.add_door(17, 8, "wooden_door")
+        self.add_door(10, 19, "iron_door")
+        self.add_door(25, 25, "wooden_door")
+        self.add_door(15, 47, "heavy_door")
+        self.add_door(45, 48, "magic_door")
         
-        # Add water zones (for swimming mechanics)
-        self.add_water_zone(22, 22, 4, 3)
+        # Add switches and levers
+        self.add_switch(8, 7, "lever", "opens_secret_passage")
+        self.add_switch(35, 50, "crystal", "unlocks_treasure")
         
-        # Add ramps and ladders
+        # Add environmental variety
+        self.add_water_zone(35, 35, 8, 6)  # Lake area
+        
+        # Add more complex features
         self.add_ramp(12, 12, "north")
         self.add_ladder(26, 26)
+    
+    def create_maze_section(self, start_x, start_y, width, height):
+        """Create a maze-like section for more complex exploration."""
+        # Fill area with walls
+        for y in range(start_y, start_y + height):
+            for x in range(start_x, start_x + width):
+                if x < self.width and y < self.height:
+                    self.map_data[y, x] = 2
+        
+        # Create winding pathways
+        path_points = [
+            (start_x + 2, start_y + 2),
+            (start_x + width - 3, start_y + 2),
+            (start_x + width - 3, start_y + height - 3),
+            (start_x + 2, start_y + height - 3)
+        ]
+        
+        # Carve out paths
+        for i in range(len(path_points)):
+            current = path_points[i]
+            next_point = path_points[(i + 1) % len(path_points)]
+            self.carve_path(current[0], current[1], next_point[0], next_point[1])
+    
+    def carve_path(self, x1, y1, x2, y2):
+        """Carve a path between two points."""
+        # Simple L-shaped path
+        # Go horizontal first
+        start_x, end_x = (x1, x2) if x1 < x2 else (x2, x1)
+        for x in range(start_x, end_x + 1):
+            if 0 <= x < self.width and 0 <= y1 < self.height:
+                self.map_data[y1, x] = 0
+        
+        # Then vertical
+        start_y, end_y = (y1, y2) if y1 < y2 else (y2, y1)
+        for y in range(start_y, end_y + 1):
+            if 0 <= x2 < self.width and 0 <= y < self.height:
+                self.map_data[y, x2] = 0
     
     def create_room(self, x, y, width, height, wall_type):
         """Create a rectangular room with the specified wall type."""

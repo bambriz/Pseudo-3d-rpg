@@ -17,6 +17,10 @@ class GameUI:
         self.show_character_sheet = False
         self.show_minimap = True
         
+        # Inventory selection
+        self.selected_inventory_slot = 0
+        self.inventory_scroll_offset = 0
+        
         # UI surfaces
         self.hud_surface = pygame.Surface((SCREEN_WIDTH, 100))
         self.hud_surface.set_alpha(200)
@@ -59,7 +63,7 @@ class GameUI:
                 if self.messages:
                     self.message_timer = 3.0  # Next message duration
     
-    def handle_event(self, event):
+    def handle_event(self, event, player=None):
         """Handle UI input events."""
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_i:
@@ -77,6 +81,34 @@ class GameUI:
                     self.show_character_sheet = False
                 else:
                     self.show_inventory = True
+            
+            # Inventory navigation with arrow keys
+            if self.show_inventory and player:
+                if event.key == pygame.K_UP:
+                    self.selected_inventory_slot = max(0, self.selected_inventory_slot - 8)
+                elif event.key == pygame.K_DOWN:
+                    max_slots = max(0, len(player.inventory) - 1)
+                    self.selected_inventory_slot = min(max_slots, self.selected_inventory_slot + 8)
+                elif event.key == pygame.K_LEFT:
+                    self.selected_inventory_slot = max(0, self.selected_inventory_slot - 1)
+                elif event.key == pygame.K_RIGHT:
+                    max_slots = max(0, len(player.inventory) - 1)
+                    self.selected_inventory_slot = min(max_slots, self.selected_inventory_slot + 1)
+                elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                    # Use/equip selected item
+                    if self.selected_inventory_slot < len(player.inventory):
+                        self.use_inventory_item(player, self.selected_inventory_slot)
+        
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            # Handle inventory clicks
+            if self.show_inventory and player:
+                self.handle_inventory_click(event.pos, player)
+        
+        elif event.type == pygame.MOUSEWHEEL and self.show_inventory:
+            # Scroll through inventory with mouse wheel
+            if player and len(player.inventory) > 32:
+                self.inventory_scroll_offset = max(0, min(len(player.inventory) // 8 - 4, 
+                                                         self.inventory_scroll_offset - event.y))
     
     def render(self, screen, player):
         """Render all UI elements."""
@@ -98,6 +130,47 @@ class GameUI:
         
         # Render crosshair
         self.render_crosshair(screen)
+    
+    def toggle_inventory(self):
+        """Toggle inventory display."""
+        self.show_inventory = not self.show_inventory
+    
+    def toggle_character_sheet(self):
+        """Toggle character sheet display."""
+        self.show_character_sheet = not self.show_character_sheet
+    
+    def toggle_minimap(self):
+        """Toggle minimap display."""
+        self.show_minimap = not self.show_minimap
+    
+    def add_message(self, message):
+        """Add a message to display queue."""
+        self.messages.append(message)
+        self.message_timer = 3.0  # Display duration
+    
+    def render_messages(self, screen):
+        """Render message queue."""
+        if self.messages and self.message_timer > 0:
+            message_surface = self.font_medium.render(self.messages[0], True, (255, 255, 255))
+            message_rect = message_surface.get_rect()
+            message_rect.centerx = SCREEN_WIDTH // 2
+            message_rect.y = 50
+            
+            # Background
+            bg_rect = message_rect.inflate(20, 10)
+            pygame.draw.rect(screen, (0, 0, 0, 180), bg_rect)
+            pygame.draw.rect(screen, (255, 255, 255), bg_rect, 2)
+            
+            screen.blit(message_surface, message_rect)
+    
+    def render_crosshair(self, screen):
+        """Render crosshair in center of screen."""
+        center_x = SCREEN_WIDTH // 2
+        center_y = SCREEN_HEIGHT // 2
+        
+        # Simple crosshair
+        pygame.draw.line(screen, (255, 255, 255), (center_x - 10, center_y), (center_x + 10, center_y), 2)
+        pygame.draw.line(screen, (255, 255, 255), (center_x, center_y - 10), (center_x, center_y + 10), 2)
     
     def render_hud(self, screen, player):
         """Render the main HUD with health, spirit, and stats."""
@@ -292,10 +365,46 @@ class GameUI:
                 screen.blit(text_surface, (text_x, text_y))
         
         # Instructions
-        instruction_text = "Press I to close | Click item to use/equip"
+        instruction_text = "I: close | Arrows: navigate | Enter/Space: use | Click: select"
         instruction_surface = self.font_small.render(instruction_text, True, self.text_color)
         instruction_x = inventory_rect.centerx - instruction_surface.get_width() // 2
         screen.blit(instruction_surface, (instruction_x, inventory_rect.bottom - 30))
+    
+    def use_inventory_item(self, player, slot):
+        """Use or equip an item from inventory."""
+        if slot >= len(player.inventory):
+            return
+        
+        item = player.inventory[slot]
+        if hasattr(item, 'type') and item.type in ['melee', 'ranged', 'magic']:
+            player.equipped_weapon = item
+            self.add_message(f"Equipped {item.name}")
+        elif hasattr(item, 'effect'):
+            item.use(player)  # Use consumable items
+            self.add_message(f"Used {item.name}")
+    
+    def handle_inventory_click(self, mouse_pos, player):
+        """Handle mouse clicks on inventory slots."""
+        # Calculate which inventory slot was clicked
+        inventory_x = (SCREEN_WIDTH - 400) // 2
+        inventory_y = (SCREEN_HEIGHT - 300) // 2
+        grid_start_x = inventory_x + 20
+        grid_start_y = inventory_y + 50
+        slot_size = 40
+        slots_per_row = 8
+        
+        rel_x = mouse_pos[0] - grid_start_x
+        rel_y = mouse_pos[1] - grid_start_y
+        
+        if rel_x >= 0 and rel_y >= 0:
+            col = rel_x // (slot_size + 5)
+            row = rel_y // (slot_size + 5)
+            
+            if col < slots_per_row and row < 4:  # Max 4 rows shown
+                slot = row * slots_per_row + col + self.inventory_scroll_offset * slots_per_row
+                if slot < len(player.inventory):
+                    self.selected_inventory_slot = slot
+                    self.use_inventory_item(player, slot)
     
     def render_character_sheet(self, screen, player):
         """Render the character sheet interface."""

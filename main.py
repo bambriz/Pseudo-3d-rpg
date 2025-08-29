@@ -14,6 +14,7 @@ from game.world import World
 from game.combat import CombatSystem
 from game.spells import SpellSystem
 from game.enemies import EnemyManager
+from game.npcs import NPCManager, DialogueUI
 from ui.interface import GameUI
 from ui.menu import MainMenu
 from assets.asset_manager import AssetManager
@@ -53,10 +54,19 @@ class Game:
         self.player = Player(self.world.spawn_x, self.world.spawn_y)
         self.combat_system = CombatSystem(self.asset_manager)
         
-        # Give player default fist weapon
+        # Give player default fist weapon and some starting items
         self.player.equipped_weapon = self.combat_system.weapons['fist']
+        self.player.add_to_inventory(self.combat_system.weapons['sword'])
+        self.player.add_to_inventory(self.combat_system.weapons['dagger'])
+        self.player.add_to_inventory(self.combat_system.weapons['wand'])
         self.spell_system = SpellSystem(self.asset_manager)
         self.enemy_manager = EnemyManager(self.world, self.asset_manager)
+        self.enemy_manager.spawn_initial_enemies()
+        
+        # Initialize NPC system
+        self.npc_manager = NPCManager(self.world, self.asset_manager)
+        self.npc_manager.spawn_initial_npcs()
+        self.dialogue_ui = DialogueUI(self.asset_manager)
         
         # Initialize UI
         self.ui = GameUI(self.asset_manager)
@@ -122,7 +132,13 @@ class Game:
                     self.running = False
                     
             elif self.game_state == "PLAYING":
-                self.ui.handle_event(event)
+                self.ui.handle_event(event, self.player)
+                # Handle dialogue input
+                if self.dialogue_ui.active:
+                    self.dialogue_ui.handle_input(event)
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_e:
+                    # Interact with NPCs (E key)
+                    self.handle_npc_interaction()
     
     def handle_left_click(self):
         """Handle left mouse click for combat."""
@@ -140,14 +156,23 @@ class Game:
         if hit_enemy:
             # Perform attack
             if self.player.equipped_weapon:
-                damage = self.combat_system.calculate_damage(
-                    self.player, self.player.equipped_weapon
-                )
-                hit_enemy.take_damage(damage)
-                self.combat_system.play_attack_sound(self.player.equipped_weapon)
+                # Trigger attack animation
+                if self.player.attack():
+                    self.player.equipped_weapon.is_attacking = True
+                    self.player.equipped_weapon.attack_animation_time = 0.0
+                    damage = self.combat_system.calculate_damage(
+                        self.player, self.player.equipped_weapon
+                    )
+                    hit_enemy.take_damage(damage)
+                    self.combat_system.play_attack_sound(self.player.equipped_weapon)
             else:
                 # Cast spell if no weapon equipped
                 self.cast_spell_at_target(hit_enemy)
+        else:
+            # Attack even if no target (for animation)
+            if self.player.equipped_weapon and self.player.attack():
+                self.player.equipped_weapon.is_attacking = True
+                self.player.equipped_weapon.attack_animation_time = 0.0
     
     def handle_right_click(self):
         """Handle right mouse click for blocking or secondary actions."""
@@ -191,8 +216,20 @@ class Game:
         # Update player
         self.player.update(keys, self.world, self.delta_time)
         
-        # Update enemies
-        self.enemy_manager.update(self.player, self.delta_time)
+        # Update other game systems
+        self.enemy_manager.update(self.delta_time, self.player)
+        self.npc_manager.update(self.delta_time)
+        self.spell_system.update(self.delta_time)
+        self.combat_system.update(self.delta_time)
+        
+        # Update weapon animations
+        if self.player.equipped_weapon:
+            if self.player.equipped_weapon.is_attacking:
+                self.player.equipped_weapon.attack_animation_time += self.delta_time
+                if self.player.equipped_weapon.attack_animation_time >= 0.4:  # Animation duration
+                    self.player.equipped_weapon.is_attacking = False
+                    self.player.equipped_weapon.attack_animation_time = 0.0
+        
         
         # Update combat system
         self.combat_system.update(self.delta_time)
@@ -214,6 +251,10 @@ class Game:
         else:
             self.render_3d_view()
             self.ui.render(self.screen, self.player)
+            
+            # Render dialogue if active
+            if self.dialogue_ui.active:
+                self.dialogue_ui.render(self.screen)
             
             if self.game_state == "PAUSED":
                 self.render_pause_overlay()
@@ -240,6 +281,15 @@ class Game:
         self.renderer.render_sprites(
             self.enemy_manager.get_visible_enemies(self.player),
             self.player.x, self.player.y, self.player.angle
+        )
+        
+        # Render sprites (enemies, NPCs, items) in 3D space
+        all_sprites = []
+        all_sprites.extend(self.enemy_manager.get_visible_enemies(self.player))
+        all_sprites.extend(self.npc_manager.get_visible_npcs(self.player))
+        
+        self.renderer.render_sprites(
+            all_sprites, self.player.x, self.player.y, self.player.angle
         )
         
         # Render weapon/spell effects
@@ -298,6 +348,13 @@ class Game:
             self.world.from_dict(game_data['world'])
             self.enemy_manager.from_dict(game_data['enemies'])
             return True
+    
+    def handle_npc_interaction(self):
+        """Handle NPC interaction when E key is pressed."""
+        # Find nearby NPC
+        npc = self.npc_manager.get_npc_at_position(self.player.x, self.player.y, radius=2.0)
+        if npc:
+            self.dialogue_ui.start_dialogue(npc, self.player)
         return False
     
     def run(self):

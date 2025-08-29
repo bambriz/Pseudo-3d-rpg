@@ -249,11 +249,18 @@ class Renderer:
     
     def render_weapon_attack_effect(self, weapon_pos, weapon_size):
         """Render visual effect for weapon attacks."""
-        # Simple flash effect
-        flash_surface = pygame.Surface(weapon_size)
-        flash_surface.set_alpha(100)
-        flash_surface.fill((255, 255, 255))
+        # Attack swing effect with golden flash
+        flash_surface = pygame.Surface(weapon_size, pygame.SRCALPHA)
+        flash_surface.fill((255, 255, 128, 180))  # Golden flash
         self.screen.blit(flash_surface, weapon_pos)
+        
+        # Add slash effect lines
+        pygame.draw.line(self.screen, (255, 255, 255), 
+                        (weapon_pos[0] + 10, weapon_pos[1] + 10), 
+                        (weapon_pos[0] + weapon_size[0] - 10, weapon_pos[1] + weapon_size[1] - 10), 3)
+        pygame.draw.line(self.screen, (255, 200, 200), 
+                        (weapon_pos[0] + weapon_size[0] - 10, weapon_pos[1] + 10), 
+                        (weapon_pos[0] + 10, weapon_pos[1] + weapon_size[1] - 10), 2)
     
     def render_spell_effects(self, effects):
         """Render active spell effects."""
