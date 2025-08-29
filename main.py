@@ -84,6 +84,10 @@ class Game:
         self.frame_count = 0
         self.fps_timer = 0
         
+        # Pause menu
+        self.pause_message = ""
+        self.pause_message_timer = 0.0
+        
     def handle_events(self):
         """Handle all input events."""
         for event in pygame.event.get():
@@ -115,16 +119,21 @@ class Game:
             
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if self.game_state == "PLAYING":
-                    if event.button == 1:  # Left click
+                    # Check if UI should handle the click first
+                    if self.ui.handle_mouse_click(event):
+                        pass  # UI handled it
+                    elif event.button == 1:  # Left click
                         self.handle_left_click()
                     elif event.button == 3:  # Right click
                         self.handle_right_click()
+                elif self.game_state == "PAUSED":
+                    self.handle_pause_menu_click(event)
                         
             # Pass events to appropriate systems
             if self.game_state == "MAIN_MENU":
                 menu_action = self.main_menu.handle_event(event)
                 if menu_action == "START_GAME":
-                    self.game_state = "PLAYING"
+                    self.start_new_game()
                 elif menu_action == "LOAD_GAME":
                     if self.load_game("save"):
                         self.game_state = "PLAYING"
@@ -132,6 +141,12 @@ class Game:
                     self.running = False
                     
             elif self.game_state == "PLAYING":
+                # Auto-pause when UI menus are active
+                if self.ui.show_inventory or self.ui.show_character_sheet or self.dialogue_ui.active:
+                    self.ui.update_timer(0.0)  # Pause timers
+                else:
+                    self.ui.update_timer(self.delta_time)
+                    
                 self.ui.handle_event(event, self.player)
                 # Handle dialogue input
                 if self.dialogue_ui.active:
@@ -139,6 +154,16 @@ class Game:
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_e:
                     # Interact with NPCs (E key)
                     self.handle_npc_interaction()
+            elif self.game_state == "PAUSED":
+                # Handle pause menu input
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_s:
+                        self.save_game("manual_save")
+                        self.add_pause_message("Game saved!")
+                    elif event.key == pygame.K_l:
+                        if self.load_game("manual_save"):
+                            self.game_state = "PLAYING"
+                            self.add_pause_message("Game loaded!")
     
     def handle_left_click(self):
         """Handle left mouse click for combat."""
@@ -254,14 +279,25 @@ class Game:
         keys = pygame.key.get_pressed()
         mouse_buttons = pygame.mouse.get_pressed()
         
-        # Update player
-        self.player.update(keys, self.world, self.delta_time)
+        # Only update if not paused by UI
+        game_paused = self.ui.show_inventory or self.ui.show_character_sheet or self.dialogue_ui.active
         
-        # Update other game systems
-        self.enemy_manager.update(self.delta_time, self.player)
-        self.npc_manager.update(self.delta_time)
-        self.spell_system.update(self.delta_time)
-        self.combat_system.update(self.delta_time)
+        if not game_paused:
+            # Update player
+            self.player.update(keys, self.world, self.delta_time)
+            
+            # Update other game systems
+            self.enemy_manager.update(self.delta_time, self.player)
+            self.npc_manager.update(self.delta_time)
+            self.spell_system.update(self.delta_time)
+            self.combat_system.update(self.delta_time)
+            
+            # Check for player death
+            if self.player.health <= 0:
+                self.handle_player_death()
+        
+        # Always update UI
+        self.ui.update(self.delta_time)
         
         # Update weapon animations
         if self.player.equipped_weapon:
@@ -359,12 +395,38 @@ class Game:
         title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100))
         self.screen.blit(title_text, title_rect)
         
-        # Render menu options
+        # Render menu options with clickable buttons
         options = [
             "Press ESC to Resume",
-            "Press Q to Quit to Main Menu",  
-            "Press ALT+F4 to Exit Game"
+            "Press S to Save Game",
+            "Press L to Load Game",
+            "Press Q to Quit to Main Menu"
         ]
+        
+        # Draw clickable save/load buttons
+        save_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 40, 200, 40)
+        load_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 90, 200, 40)
+        
+        # Save button
+        pygame.draw.rect(self.screen, (60, 60, 60), save_button_rect)
+        pygame.draw.rect(self.screen, (255, 255, 255), save_button_rect, 2)
+        save_text = medium_font.render("Save Game (S)", True, (255, 255, 255))
+        save_text_rect = save_text.get_rect(center=save_button_rect.center)
+        self.screen.blit(save_text, save_text_rect)
+        
+        # Load button
+        pygame.draw.rect(self.screen, (60, 60, 60), load_button_rect)
+        pygame.draw.rect(self.screen, (255, 255, 255), load_button_rect, 2)
+        load_text = medium_font.render("Load Game (L)", True, (255, 255, 255))
+        load_text_rect = load_text.get_rect(center=load_button_rect.center)
+        self.screen.blit(load_text, load_text_rect)
+        
+        # Show pause message if any
+        if hasattr(self, 'pause_message') and self.pause_message and self.pause_message_timer > 0:
+            msg_surface = medium_font.render(self.pause_message, True, (100, 255, 100))
+            msg_rect = msg_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 150))
+            self.screen.blit(msg_surface, msg_rect)
+            self.update_pause_timer(self.delta_time)
         
         for i, option in enumerate(options):
             option_text = medium_font.render(option, True, (200, 200, 200))
@@ -421,7 +483,68 @@ class Game:
         weapon.is_attacking = True
         weapon.attack_animation_time = 0.0
         self.combat_system.play_attack_sound(weapon)
-        return False
+    
+    def start_new_game(self):
+        """Start a completely fresh new game."""
+        # Reset all game systems
+        self.world = World()
+        self.player = Player(self.world.spawn_x, self.world.spawn_y)
+        
+        # Give player default equipment
+        self.player.equipped_weapon = self.combat_system.weapons['fist']
+        self.player.add_to_inventory(self.combat_system.weapons['sword'])
+        self.player.add_to_inventory(self.combat_system.weapons['dagger'])
+        self.player.add_to_inventory(self.combat_system.weapons['wand'])
+        
+        # Reset enemy manager
+        self.enemy_manager = EnemyManager(self.world, self.asset_manager)
+        self.enemy_manager.spawn_initial_enemies()
+        
+        # Reset NPC manager
+        self.npc_manager = NPCManager(self.world, self.asset_manager)
+        self.npc_manager.spawn_initial_npcs()
+        
+        # Reset UI
+        self.ui = GameUI(self.asset_manager)
+        self.dialogue_ui = DialogueUI(self.asset_manager)
+        
+        self.game_state = "PLAYING"
+    
+    def handle_pause_menu_click(self, event):
+        """Handle mouse clicks in pause menu."""
+        if event.button != 1:  # Only handle left clicks
+            return
+            
+        mouse_x, mouse_y = event.pos
+        
+        # Check for save button click (simple button areas)
+        save_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 40, 200, 40)
+        load_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 + 90, 200, 40)
+        
+        if save_button_rect.collidepoint(mouse_x, mouse_y):
+            self.save_game("manual_save")
+            self.add_pause_message("Game saved!")
+        elif load_button_rect.collidepoint(mouse_x, mouse_y):
+            if self.load_game("manual_save"):
+                self.game_state = "PLAYING"
+                self.add_pause_message("Game loaded!")
+    
+    def add_pause_message(self, message):
+        """Add a message to show in pause menu."""
+        self.pause_message = message
+        self.pause_message_timer = 2.0
+        
+    def update_pause_timer(self, delta_time):
+        """Update pause menu message timer."""
+        if hasattr(self, 'pause_message_timer') and self.pause_message_timer > 0:
+            self.pause_message_timer -= delta_time
+            if self.pause_message_timer <= 0:
+                self.pause_message = ""
+    
+    def handle_player_death(self):
+        """Handle player death."""
+        self.ui.add_message("You have died! Press ESC to return to main menu")
+        self.game_state = "PAUSED"
     
     def run(self):
         """Main game loop."""

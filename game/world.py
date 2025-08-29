@@ -35,7 +35,7 @@ class World:
         self.generate_test_dungeon()
     
     def generate_test_dungeon(self):
-        """Generate a larger explorable dungeon with varied areas."""
+        """Generate a giant 128x128 maze-like dungeon with varied areas."""
         # Clear the map
         self.map_data.fill(0)
         
@@ -45,53 +45,104 @@ class World:
         self.map_data[:, 0] = 1  # Left wall
         self.map_data[:, -1] = 1  # Right wall
         
-        # Create multiple distinct areas for exploration
-        # Starting area - safe zone
-        self.create_room(5, 5, 12, 8, 2)  # Large starting room
-        self.create_room(20, 5, 8, 6, 3)  # Guard house
-        self.create_room(30, 8, 10, 8, 4)  # Storage area
+        # Create multiple sectors across the 128x128 world
+        # Northwest Sector - Starting areas (0-32)
+        self.create_room(5, 5, 12, 8, 2)  # Starting room
+        self.create_room(20, 5, 8, 6, 3)  # Guard house  
+        self.create_room(25, 15, 10, 8, 4)  # Storage area
+        self.create_maze_section(8, 15, 15, 15)  # Starting maze
         
-        # Mid-level areas
-        self.create_room(5, 20, 15, 10, 2)  # Great hall
-        self.create_room(25, 20, 12, 12, 3)  # Training grounds
-        self.create_room(45, 15, 15, 8, 4)  # Library
+        # Northeast Sector - Training areas (32-64)
+        self.create_room(35, 5, 15, 10, 2)  # Great hall
+        self.create_room(55, 8, 12, 12, 3)  # Training grounds
+        self.create_room(70, 15, 15, 8, 4)  # Library
+        self.create_maze_section(75, 25, 20, 20)  # Advanced maze
         
-        # Dangerous deeper areas
-        self.create_room(5, 40, 10, 12, 1)  # Prison cells
-        self.create_room(25, 45, 20, 15, 4)  # Boss arena
-        self.create_room(50, 45, 10, 10, 3)  # Treasure vault
+        # Southwest Sector - Dangerous areas (64-96)
+        self.create_room(5, 70, 10, 12, 1)  # Prison cells
+        self.create_room(20, 75, 20, 15, 4)  # Boss arena
+        self.create_room(45, 80, 15, 12, 3)  # Treasure vault
+        self.create_maze_section(10, 95, 25, 20)  # Deadly maze
         
-        # Connect areas with corridors
-        self.create_horizontal_corridor(17, 8, 20)  # Connect starting rooms
-        self.create_vertical_corridor(10, 13, 20)  # To great hall
-        self.create_horizontal_corridor(20, 25, 25)  # To training grounds
-        self.create_vertical_corridor(30, 32, 45)  # To deeper areas
-        self.create_horizontal_corridor(15, 25, 48)  # Connect deep areas
+        # Southeast Sector - Epic endgame areas (96-128)
+        self.create_room(70, 70, 25, 20, 1)  # Massive throne room
+        self.create_room(100, 65, 15, 15, 4)  # Final boss chamber
+        self.create_room(85, 95, 20, 15, 2)  # Ultimate treasure room
+        self.create_maze_section(95, 90, 30, 25)  # Master maze
         
-        # Add maze-like sections
-        self.create_maze_section(40, 25, 15, 15)
+        # Central Hub - Connecting all sectors
+        self.create_room(58, 58, 12, 12, 3)  # Central hub
+        
+        # Create major connecting corridors across the world
+        self.create_horizontal_corridor(5, 125, 64)  # Central horizontal line
+        self.create_vertical_corridor(64, 5, 120)  # Central vertical line
+        
+        # Connect northwest to northeast
+        self.create_horizontal_corridor(17, 35, 8)
+        self.create_horizontal_corridor(23, 55, 20)
+        
+        # Connect northwest to southwest  
+        self.create_vertical_corridor(10, 30, 70)
+        self.create_vertical_corridor(25, 25, 75)
+        
+        # Connect northeast to southeast
+        self.create_vertical_corridor(80, 25, 70)
+        self.create_vertical_corridor(105, 20, 65)
+        
+        # Connect southwest to southeast
+        self.create_horizontal_corridor(45, 100, 85)
+        self.create_horizontal_corridor(25, 85, 100)
+        
+        # Add multiple large maze sections throughout
+        self.create_maze_section(45, 30, 25, 25)  # Center-north maze
+        self.create_maze_section(20, 45, 30, 20)  # Center-west maze  
+        self.create_maze_section(75, 45, 20, 20)  # Center-east maze
+        self.create_maze_section(100, 35, 25, 25)  # Far northeast maze
+        self.create_maze_section(15, 100, 20, 25)  # Far southwest maze
         
         # Set spawn point in the starting room
         self.spawn_x = 10.5
         self.spawn_y = 8.5
         
-        # Add many doors and interactive elements
-        self.add_door(17, 8, "wooden_door")
-        self.add_door(10, 19, "iron_door")
-        self.add_door(25, 25, "wooden_door")
-        self.add_door(15, 47, "heavy_door")
-        self.add_door(45, 48, "magic_door")
+        # Add many doors throughout the giant world
+        door_positions = [
+            (17, 8, "wooden_door"), (35, 10, "iron_door"), (58, 58, "heavy_door"),
+            (25, 75, "magic_door"), (80, 15, "wooden_door"), (105, 70, "boss_door"),
+            (45, 45, "secret_door"), (90, 90, "vault_door"), (15, 100, "prison_door"),
+            (100, 40, "temple_door"), (70, 25, "guild_door"), (25, 45, "crypt_door")
+        ]
+        for x, y, door_type in door_positions:
+            self.add_door(x, y, door_type)
         
-        # Add switches and levers
-        self.add_switch(8, 7, "lever", "opens_secret_passage")
-        self.add_switch(35, 50, "crystal", "unlocks_treasure")
+        # Add switches and levers across sectors
+        switch_positions = [
+            (8, 7, "lever", "opens_secret_passage"), (40, 12, "crystal", "unlocks_library"),
+            (64, 64, "orb", "central_power"), (85, 85, "rune", "unlocks_treasure"),
+            (15, 80, "skull", "opens_prison"), (110, 75, "gem", "boss_chamber"),
+            (50, 50, "altar", "master_key"), (95, 30, "statue", "maze_shortcut")
+        ]
+        for x, y, switch_type, effect in switch_positions:
+            self.add_switch(x, y, switch_type, effect)
         
-        # Add environmental variety
-        self.add_water_zone(35, 35, 8, 6)  # Lake area
+        # Add environmental variety across the large world
+        water_zones = [
+            (35, 35, 8, 6), (80, 20, 10, 8), (20, 90, 12, 10),
+            (95, 55, 8, 8), (45, 100, 15, 12), (110, 30, 6, 6)
+        ]
+        for x, y, w, h in water_zones:
+            self.add_water_zone(x, y, w, h)
         
-        # Add more complex features
-        self.add_ramp(12, 12, "north")
-        self.add_ladder(26, 26)
+        # Add ramps and ladders for vertical variety
+        feature_positions = [
+            ("ramp", 12, 12, "north"), ("ladder", 40, 40), ("ramp", 80, 60, "south"),
+            ("ladder", 100, 100), ("ramp", 25, 80, "east"), ("ladder", 70, 25),
+            ("ramp", 90, 40, "west"), ("ladder", 30, 110), ("ramp", 110, 80, "north")
+        ]
+        for feature_type, x, y, *args in feature_positions:
+            if feature_type == "ramp":
+                self.add_ramp(x, y, args[0])
+            else:
+                self.add_ladder(x, y)
     
     def create_maze_section(self, start_x, start_y, width, height):
         """Create a maze-like section for more complex exploration."""

@@ -44,7 +44,7 @@ HEAL_AMOUNT = 15
 SHIELD_DURATION = 10.0
 
 # World settings
-WORLD_SIZE = 64  # Larger explorable world
+WORLD_SIZE = 128  # Giant maze-like world
 WALL_HEIGHT_SCALE = 1.0
 
 # UI settings

@@ -370,6 +370,30 @@ class GameUI:
         instruction_x = inventory_rect.centerx - instruction_surface.get_width() // 2
         screen.blit(instruction_surface, (instruction_x, inventory_rect.bottom - 30))
     
+    def handle_mouse_click(self, event):
+        """Handle mouse clicks on UI elements."""
+        if event.button != 1:  # Only left clicks
+            return False
+            
+        mouse_x, mouse_y = event.pos
+        
+        # Check for HUD button clicks
+        if self.show_inventory or self.show_character_sheet:
+            return True  # UI is consuming the click
+            
+        return False  # UI didn't handle the click
+    
+    def update(self, delta_time):
+        """Update UI timers and animations."""
+        self.update_timer(delta_time)
+        
+    def update_timer(self, delta_time):
+        """Update UI message timer."""
+        if self.message_timer > 0:
+            self.message_timer -= delta_time
+            if self.message_timer <= 0 and self.messages:
+                self.messages.pop(0)
+    
     def use_inventory_item(self, player, slot):
         """Use or equip an item from inventory."""
         if slot >= len(player.inventory):
