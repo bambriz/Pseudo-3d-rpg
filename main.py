@@ -148,31 +148,72 @@ class Game:
         # Convert screen coordinates to world ray for 3D targeting
         ray_angle = self.player.angle + (mouse_x - SCREEN_WIDTH // 2) * FOV / SCREEN_WIDTH
         
-        # Check for enemy hits
+        # Get weapon range (use equipped weapon range, or default to fist range)
+        weapon_range = 1.0  # Default fist range
+        if self.player.equipped_weapon:
+            weapon_range = self.player.equipped_weapon.range
+        
+        # Check for enemy hits using weapon-specific range
         hit_enemy = self.enemy_manager.check_ray_hit(
-            self.player.x, self.player.y, ray_angle, ATTACK_RANGE
+            self.player.x, self.player.y, ray_angle, weapon_range
         )
         
         if hit_enemy:
-            # Perform attack
+            # Perform attack based on weapon type
             if self.player.equipped_weapon:
-                # Trigger attack animation
-                if self.player.attack():
-                    self.player.equipped_weapon.is_attacking = True
-                    self.player.equipped_weapon.attack_animation_time = 0.0
-                    damage = self.combat_system.calculate_damage(
-                        self.player, self.player.equipped_weapon
-                    )
-                    hit_enemy.take_damage(damage)
-                    self.combat_system.play_attack_sound(self.player.equipped_weapon)
+                weapon = self.player.equipped_weapon
+                
+                # Handle different weapon types
+                if weapon.type == "ranged":
+                    # Create projectile for ranged weapons
+                    self.create_projectile(self.player.x, self.player.y, ray_angle, weapon, hit_enemy)
+                elif weapon.type == "magic":
+                    # Cast spell at target
+                    self.cast_spell_at_target(hit_enemy)
+                else:
+                    # Melee attack - check distance and perform immediate hit
+                    dx = hit_enemy.x - self.player.x
+                    dy = hit_enemy.y - self.player.y
+                    distance = (dx*dx + dy*dy)**0.5
+                    
+                    if distance <= weapon.range:
+                        # Trigger attack animation
+                        if self.player.attack():
+                            weapon.is_attacking = True
+                            weapon.attack_animation_time = 0.0
+                            damage = self.combat_system.calculate_damage(self.player, weapon)
+                            hit_enemy.take_damage(damage)
+                            self.combat_system.play_attack_sound(weapon)
             else:
-                # Cast spell if no weapon equipped
-                self.cast_spell_at_target(hit_enemy)
+                # Use fist attack if no weapon equipped
+                dx = hit_enemy.x - self.player.x
+                dy = hit_enemy.y - self.player.y
+                distance = (dx*dx + dy*dy)**0.5
+                
+                if distance <= 1.0:  # Fist range
+                    if self.player.attack():
+                        fist_weapon = self.combat_system.weapons['fist']
+                        fist_weapon.is_attacking = True
+                        fist_weapon.attack_animation_time = 0.0
+                        damage = self.combat_system.calculate_damage(self.player, fist_weapon)
+                        hit_enemy.take_damage(damage)
+                        self.combat_system.play_attack_sound(fist_weapon)
         else:
-            # Attack even if no target (for animation)
-            if self.player.equipped_weapon and self.player.attack():
-                self.player.equipped_weapon.is_attacking = True
-                self.player.equipped_weapon.attack_animation_time = 0.0
+            # Attack even if no target (for animation) 
+            if self.player.equipped_weapon:
+                weapon = self.player.equipped_weapon
+                if self.player.attack():
+                    weapon.is_attacking = True
+                    weapon.attack_animation_time = 0.0
+                    if weapon.type == "ranged":
+                        # Create projectile even without target
+                        self.create_projectile(self.player.x, self.player.y, ray_angle, weapon, None)
+            else:
+                # Animate fist attack even without target
+                if self.player.attack():
+                    fist_weapon = self.combat_system.weapons['fist']
+                    fist_weapon.is_attacking = True
+                    fist_weapon.attack_animation_time = 0.0
     
     def handle_right_click(self):
         """Handle right mouse click for blocking or secondary actions."""
@@ -355,6 +396,31 @@ class Game:
         npc = self.npc_manager.get_npc_at_position(self.player.x, self.player.y, radius=2.0)
         if npc:
             self.dialogue_ui.start_dialogue(npc, self.player)
+    
+    def create_projectile(self, start_x, start_y, angle, weapon, target=None):
+        """Create a projectile for ranged weapons."""
+        # Add projectile to spell system for rendering and physics
+        projectile = {
+            'x': start_x,
+            'y': start_y,
+            'angle': angle,
+            'speed': 8.0,  # Projectile speed
+            'range': weapon.range,
+            'damage': self.combat_system.calculate_damage(self.player, weapon),
+            'weapon_type': weapon.type,
+            'target': target,
+            'lifetime': weapon.range / 8.0  # Time to travel max range
+        }
+        
+        # Add to active projectiles in spell system
+        if not hasattr(self.spell_system, 'active_projectiles'):
+            self.spell_system.active_projectiles = []
+        self.spell_system.active_projectiles.append(projectile)
+        
+        # Trigger weapon animation
+        weapon.is_attacking = True
+        weapon.attack_animation_time = 0.0
+        self.combat_system.play_attack_sound(weapon)
         return False
     
     def run(self):

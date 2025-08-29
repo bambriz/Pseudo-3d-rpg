@@ -16,6 +16,11 @@ class NPC:
         self.name = name
         self.sprite_id = sprite_id
         
+        # Rendering attributes (needed for sprite rendering system)
+        self.color = self.get_npc_color_by_type(npc_type)  # Fallback color for rendering
+        self.health = 100  # NPCs have health but are non-hostile
+        self.max_health = 100
+        
         # Dialogue system
         self.dialogue_tree = {}
         self.current_dialogue_node = "start"
@@ -37,6 +42,16 @@ class NPC:
         
         # Generate appropriate dialogue based on type
         self.generate_dialogue()
+    
+    def get_npc_color_by_type(self, npc_type):
+        """Get fallback color for NPC based on type."""
+        color_map = {
+            'merchant': (100, 150, 255),  # Blue for merchants
+            'guard': (150, 150, 150),     # Gray for guards  
+            'villager': (200, 180, 120),  # Tan for villagers
+            'quest_giver': (255, 215, 0)  # Gold for quest givers
+        }
+        return color_map.get(npc_type, (180, 180, 180))  # Default gray
         
     def generate_dialogue(self):
         """Generate dialogue based on NPC type."""

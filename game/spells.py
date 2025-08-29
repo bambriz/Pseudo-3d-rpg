@@ -121,6 +121,19 @@ class SpellSystem:
         
         # Update projectiles
         self.update_projectiles(delta_time)
+        
+        # Update weapon projectiles if they exist
+        if hasattr(self, 'active_projectiles'):
+            for projectile in self.active_projectiles[:]:
+                # Move projectile
+                import numpy as np
+                projectile['x'] += np.cos(projectile['angle']) * projectile['speed'] * delta_time
+                projectile['y'] += np.sin(projectile['angle']) * projectile['speed'] * delta_time
+                
+                # Decrease lifetime
+                projectile['lifetime'] -= delta_time
+                if projectile['lifetime'] <= 0:
+                    self.active_projectiles.remove(projectile)
     
     def update_active_effects(self, delta_time):
         """Update active spell effects."""
