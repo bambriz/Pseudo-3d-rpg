@@ -14,12 +14,29 @@ class RayCaster:
         self.ray_angles = np.linspace(-FOV / 2, FOV / 2, NUM_RAYS)
         
     def cast_rays(self, player_x, player_y, player_angle, world):
-        """Cast all rays and return hit information."""
+        """Cast all rays and return hit information using optimized Numba function."""
         rays = []
+        world_array = world.get_map_array()  # Get NumPy array representation
         
         for i in range(NUM_RAYS):
             ray_angle = player_angle + self.ray_angles[i]
-            ray_data = self.cast_single_ray(player_x, player_y, ray_angle, world)
+            dx = np.cos(ray_angle)
+            dy = np.sin(ray_angle)
+            
+            # Use optimized Numba function
+            hit, distance, texture_id, texture_x, side, map_x, map_y = fast_dda(
+                player_x, player_y, dx, dy, world_array, world.width, world.height
+            )
+            
+            ray_data = {
+                'hit': hit,
+                'distance': distance,
+                'texture_id': texture_id,
+                'texture_x': texture_x,
+                'side': side,
+                'map_x': map_x,
+                'map_y': map_y
+            }
             rays.append(ray_data)
             
         return rays
@@ -173,6 +190,7 @@ def fast_dda(start_x, start_y, dx, dy, world_array, world_width, world_height):
     
     hit = False
     side = 0
+    texture_id = 0  # Initialize texture_id
     
     while not hit:
         if side_dist_x < side_dist_y:

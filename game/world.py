@@ -182,6 +182,10 @@ class World:
             return self.map_data[y, x]
         return 1  # Return wall if outside bounds
     
+    def get_map_array(self):
+        """Get the map data as a NumPy array for optimized operations."""
+        return self.map_data
+    
     def set_cell(self, x, y, value):
         """Set the value of a map cell."""
         if 0 <= x < self.width and 0 <= y < self.height:

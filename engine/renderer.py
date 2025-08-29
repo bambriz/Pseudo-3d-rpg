@@ -19,9 +19,14 @@ class Renderer:
         self.wall_heights = np.zeros(SCREEN_WIDTH)
         
     def render_walls(self, rays):
-        """Render walls using raycasting data."""
+        """Render walls using optimized batch operations."""
+        # Extract distances and update z-buffer in batch
+        distances = np.array([ray['distance'] if ray['hit'] else float('inf') for ray in rays])
+        self.z_buffer = distances
+        
+        # Render wall slices
         for i, ray in enumerate(rays):
-            if ray['hit']:
+            if ray['hit'] and ray['distance'] > 0.001:  # Avoid division by zero
                 self.render_wall_slice(i, ray)
                 
     def render_wall_slice(self, x, ray):
@@ -60,30 +65,35 @@ class Renderer:
         )
     
     def render_textured_wall_slice(self, x, wall_start, wall_end, texture, tex_x, shade_factor):
-        """Render a textured wall slice with shading."""
+        """Render a textured wall slice with shading using optimized array operations."""
         wall_height = wall_end - wall_start
+        if wall_height <= 0:
+            return
+            
         tex_height = texture.get_height()
         
-        # Sample texture column
-        for y in range(wall_start, wall_end):
-            # Calculate texture Y coordinate
-            tex_y = int(((y - wall_start) / wall_height) * tex_height) % tex_height
+        # Get texture column as array for faster access
+        try:
+            texture_array = pygame.surfarray.array3d(texture)
+            screen_array = pygame.surfarray.pixels3d(self.screen)
             
-            # Get pixel color from texture
-            try:
-                color = texture.get_at((tex_x, tex_y))
-                
-                # Apply shading
-                shaded_color = (
-                    int(color[0] * shade_factor),
-                    int(color[1] * shade_factor),
-                    int(color[2] * shade_factor)
-                )
-                
-                self.screen.set_at((x, y), shaded_color)
-            except IndexError:
-                # Fallback for invalid texture coordinates
-                self.screen.set_at((x, y), (64, 64, 64))
+            # Vectorized texture sampling
+            y_coords = np.arange(wall_start, wall_end)
+            tex_y_coords = ((y_coords - wall_start) / wall_height * tex_height).astype(np.int32) % tex_height
+            
+            # Sample texture column
+            tex_colors = texture_array[tex_x, tex_y_coords]
+            
+            # Apply shading
+            shaded_colors = (tex_colors * shade_factor).astype(np.uint8)
+            
+            # Copy to screen
+            screen_array[x, wall_start:wall_end] = shaded_colors.T
+            
+        except (IndexError, ValueError):
+            # Fallback to simple colored line
+            color = (int(128 * shade_factor), int(128 * shade_factor), int(128 * shade_factor))
+            pygame.draw.line(self.screen, color, (x, wall_start), (x, wall_end))
     
     def get_wall_color(self, texture_id):
         """Get fallback color for wall texture ID."""
@@ -183,14 +193,16 @@ class Renderer:
             pygame.draw.rect(self.screen, color, sprite_rect)
     
     def is_sprite_visible(self, sprite_rect, depth):
-        """Check if sprite is visible using z-buffer."""
+        """Check if sprite is visible using vectorized z-buffer operations."""
         start_x = max(0, sprite_rect.left)
         end_x = min(SCREEN_WIDTH, sprite_rect.right)
         
-        for x in range(start_x, end_x):
-            if x < len(self.z_buffer) and depth < self.z_buffer[x]:
-                return True
-        return False
+        if start_x >= end_x or end_x > len(self.z_buffer):
+            return False
+            
+        # Vectorized comparison
+        relevant_depths = self.z_buffer[start_x:end_x]
+        return np.any(depth < relevant_depths)
     
     def apply_sprite_shading(self, texture, shade_factor):
         """Apply distance-based shading to sprite texture."""
@@ -288,5 +300,10 @@ class Renderer:
         self.screen.blit(overlay, (0, 0))
     
     def clear_z_buffer(self):
-        """Clear the z-buffer for the next frame."""
+        """Clear the z-buffer for the next frame using optimized NumPy operations."""
         self.z_buffer.fill(float('inf'))
+    
+    def update_z_buffer_vectorized(self, distances):
+        """Update z-buffer with vectorized operations for better performance."""
+        if len(distances) == len(self.z_buffer):
+            self.z_buffer = np.minimum(self.z_buffer, distances)

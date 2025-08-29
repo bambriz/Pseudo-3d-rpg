@@ -72,7 +72,7 @@ class Mode7Renderer:
         screen.blit(flipped_ceiling, (0, 0))
     
     def render_horizontal_surface(self, surface, texture, player_x, player_y, player_angle, is_ceiling):
-        """Render a horizontal surface (floor or ceiling) with Mode 7 perspective."""
+        """Render a horizontal surface using optimized Numba function."""
         surface.fill((0, 0, 0))  # Clear surface
         
         # Rotation matrix for player angle
@@ -82,50 +82,24 @@ class Mode7Renderer:
         texture_width = texture.get_width()
         texture_height = texture.get_height()
         
-        # Get texture as array for faster access
-        texture_array = pygame.surfarray.array3d(texture)
-        
-        # Render each pixel
-        for y in range(surface.get_height()):
-            for x in range(surface.get_width()):
-                # Get world position from perspective table
-                if y < len(self.perspective_table) and x < len(self.perspective_table[y]):
-                    world_x = self.perspective_table[y, x, 0]
-                    world_z = self.perspective_table[y, x, 1]
-                    
-                    # Apply rotation
-                    rotated_x = world_x * cos_a - world_z * sin_a
-                    rotated_z = world_x * sin_a + world_z * cos_a
-                    
-                    # Add player position
-                    final_x = rotated_x + player_x
-                    final_z = rotated_z + player_y
-                    
-                    # Scale for texture tiling
-                    tex_x = int(final_x * texture_width) % texture_width
-                    tex_z = int(final_z * texture_height) % texture_height
-                    
-                    # Sample texture
-                    try:
-                        color = texture.get_at((tex_x, tex_z))
-                        
-                        # Apply distance-based fog
-                        distance = np.sqrt(world_x * world_x + world_z * world_z)
-                        fog_factor = max(0.3, 1.0 - distance / MAX_RENDER_DISTANCE)
-                        
-                        fogged_color = (
-                            int(color[0] * fog_factor),
-                            int(color[1] * fog_factor),
-                            int(color[2] * fog_factor)
-                        )
-                        
-                        surface.set_at((x, y), fogged_color)
-                    except (IndexError, ValueError):
-                        # Fallback color for invalid coordinates
-                        if is_ceiling:
-                            surface.set_at((x, y), CEILING_COLOR)
-                        else:
-                            surface.set_at((x, y), FLOOR_COLOR)
+        try:
+            # Get arrays for fast processing
+            texture_array = pygame.surfarray.array3d(texture)
+            surface_array = pygame.surfarray.pixels3d(surface)
+            
+            # Use optimized Numba function
+            fast_mode7_render(
+                texture_array, surface_array, self.perspective_table,
+                player_x, player_y, cos_a, sin_a,
+                texture_width, texture_height, MAX_RENDER_DISTANCE
+            )
+            
+        except Exception:
+            # Fallback to simple fill
+            if is_ceiling:
+                surface.fill(CEILING_COLOR)
+            else:
+                surface.fill(FLOOR_COLOR)
     
     def create_default_floor_texture(self):
         """Create a default procedural floor texture."""
